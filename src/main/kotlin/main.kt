@@ -2,20 +2,43 @@ import java.io.File
 import org.apache.tika.detect.TextDetector
 
 enum class License {
-    MIT, APACHE2, GPL3, LGPL3, BSD3CLAUSE
+    MIT, APACHE2, GPL3, LGPL3, BSD3CLAUSE, UNKNOWN
 }
 
-class LicenseFinder {
-    private val mitText = readStrippedFile("licenses/MIT.txt")
-    private val apache2HeaderText = readStrippedFile("licenses/AP2_Header.txt")
-    private val gpl3HeaderText = readStrippedFile("licenses/GPL3_Header.txt")
-    private val bsd3ClText = readStrippedFile("licenses/BSD3Cl.txt")
-    private val gpl3Text = readStrippedFile("licenses/GPL3.txt")
-    private val lgpl3Text = readStrippedFile("licenses/LGPL3.txt")
-    private val apache2Text = readStrippedFile("licenses/Apache2.txt")
-    private val textDetector = TextDetector()
+interface LicenseFinder {
+    fun getFileLicense(file: String): License?
+    fun getLicenses(directory: String): Set<License>
+    fun getMainLicense(directory: String): License?
+}
 
-    fun getFileLicense(file: String): License? {
+fun String.getLettersAndDigits(): String {
+    return this
+            .filter { it.isLetterOrDigit() }
+            .map { it.toLowerCase() }
+            .joinToString("")
+}
+
+class SimpleLicenseFinder : LicenseFinder {
+    private companion object {
+        private fun readStrippedResourceFile(file: String): String {
+            // Reading file like this allows us to find licenses in comments
+            // Or if some 'whitespace' characters were inserted or deleted in the license
+            return SimpleLicenseFinder::class.java.getResource(file)
+                    .readText()
+                    .getLettersAndDigits()
+        }
+
+        private val mitText = readStrippedResourceFile("/licenses/MIT.txt")
+        private val apache2HeaderText = readStrippedResourceFile("/licenses/AP2_Header.txt")
+        private val gpl3HeaderText = readStrippedResourceFile("/licenses/GPL3_Header.txt")
+        private val bsd3ClText = readStrippedResourceFile("/licenses/BSD3Cl.txt")
+        private val gpl3Text = readStrippedResourceFile("/licenses/GPL3.txt")
+        private val lgpl3Text = readStrippedResourceFile("/licenses/LGPL3.txt")
+        private val apache2Text = readStrippedResourceFile("/licenses/Apache2.txt")
+        private val textDetector = TextDetector()
+    }
+
+    override fun getFileLicense(file: String): License? {
         return when {
             searchInFile(mitText, file) -> License.MIT
             searchInFile(apache2HeaderText, file) || searchInFile(apache2Text, file) -> License.APACHE2
@@ -26,13 +49,13 @@ class LicenseFinder {
         }
     }
 
-    fun getMainLicense(directory: String): License? {
+    override fun getMainLicense(directory: String): License? {
         val licenseFile = getMainLicenseFile(directory) ?: return null
-        return getFileLicense(licenseFile)
-
+        return getFileLicense(licenseFile) ?: License.UNKNOWN
+        // return UNKNOWN if LICENSE.txt or similar is present, but we don't know the actual license
     }
 
-    fun getLicenses(directory: String): Set<License> {
+    override fun getLicenses(directory: String): Set<License> {
         val res = mutableSetOf<License>()
         for (textFile in getTextFiles(directory)) {
             res.add(getFileLicense(textFile) ?: continue)
@@ -64,25 +87,21 @@ class LicenseFinder {
         return result
     }
 
+
 }
 
 fun searchInFile(needle: String, haystackFile: String): Boolean {
-    val haystack = readStrippedFile(haystackFile)
+    val haystack = File(haystackFile).readText().getLettersAndDigits()
     return haystack.contains(needle)
 }
 
-fun readStrippedFile(file: String): String {
-    // Reading file like this allows us to find licenses in comments
-    // Or if some 'whitespace' characters were inserted or deleted in the license
-    return File(file)
-            .readText()
-            .filter { it.isLetterOrDigit() }
-            .map { it.toLowerCase() }
-            .joinToString("")
-}
-
 fun main(args: Array<String>) {
-    val licenseFinder = LicenseFinder()
+    if (args.size != 1) {
+        System.err.println("Wrong number of arguments, got ${args.size}, expected 1")
+        return
+    }
+
+    val licenseFinder = SimpleLicenseFinder()
     val licenses = licenseFinder.getLicenses(args[0])
 
     println("MIT: ${licenses.contains(License.MIT)}")
