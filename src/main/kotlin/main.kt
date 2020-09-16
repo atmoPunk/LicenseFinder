@@ -24,14 +24,14 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
 
-    val licenseFinder = SimpleLicenseFinder()
+    val licenseFinder = LicenseFinder()
     val licenses = licenseFinder.getLicenses(directory)
 
-    println("MIT: ${licenses.contains(License.MIT)}")
-    println("Apache 2.0: ${licenses.contains(License.APACHE2)}")
-    println("GPL 3.0: ${licenses.contains(License.GPL3)}")
-    println("LGPL 3.0: ${licenses.contains(License.LGPL3)}")
-    println("BSD 3-Clause: ${licenses.contains(License.BSD3CLAUSE)}")
+
+    println("Licenses found: ")
+    for (license in licenses) {
+        println(license.name)
+    }
 
     println("Main license: ${licenseFinder.getMainLicense(directory)?.name}")
 }

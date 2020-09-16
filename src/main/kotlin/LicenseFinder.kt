@@ -6,21 +6,16 @@ enum class License {
     MIT, APACHE2, GPL3, LGPL3, BSD3CLAUSE, UNKNOWN
 }
 
-interface LicenseFinder {
-    fun getFileLicense(file: File): License?
-    fun getLicenses(directory: File): Set<License>
-    fun getMainLicense(directory: File): License?
-}
-
 fun String.getLettersAndDigits(): String {
     return this
+            .asSequence()
             .filter { it.isLetterOrDigit() }
             .map { it.toLowerCase() }
             .joinToString("")
 }
 
-class SimpleLicenseFinder : LicenseFinder {
-    override fun getFileLicense(file: File): License? {
+class LicenseFinder {
+     fun getFileLicense(file: File): License? {
         return when {
             searchInFile(mitText, file) -> License.MIT
             searchInFile(apache2HeaderText, file) || searchInFile(apache2Text, file) -> License.APACHE2
@@ -31,18 +26,16 @@ class SimpleLicenseFinder : LicenseFinder {
         }
     }
 
-    override fun getMainLicense(directory: File): License? {
+    fun getMainLicense(directory: File): License? {
         val licenseFile = getMainLicenseFile(directory) ?: return null
         return getFileLicense(licenseFile) ?: License.UNKNOWN
-        // return UNKNOWN if LICENSE.txt or similar is present, but we don't know the actual license
+        // returns UNKNOWN if LICENSE.txt or similar is present, but we don't know the actual license
     }
 
-    override fun getLicenses(directory: File): Set<License> {
-        val res = mutableSetOf<License>()
-        for (textFile in getTextFiles(directory)) {
-            res.add(getFileLicense(textFile) ?: continue)
-        }
-        return res
+    fun getLicenses(directory: File): Set<License> {
+        return getTextFiles(directory)
+                .mapNotNull { getFileLicense(it) }
+                .toSet()
     }
 
     private fun getMainLicenseFile(directory: File): File? {
@@ -55,8 +48,8 @@ class SimpleLicenseFinder : LicenseFinder {
         return null
     }
 
-    private fun getTextFiles(directory: File): ArrayList<File> {
-        val result: ArrayList<File> = ArrayList()
+    private fun getTextFiles(directory: File): List<File> {
+        val result = mutableListOf<File>()
         for (file in directory.walkTopDown()) {
             if (file.isDirectory) {
                 continue
@@ -79,7 +72,7 @@ class SimpleLicenseFinder : LicenseFinder {
         private fun readStrippedResourceFile(resource: String): String {
             // Reading file like this allows us to find licenses in comments
             // Or if some 'whitespace' characters were inserted or deleted in the license
-            return SimpleLicenseFinder::class.java.getResourceAsStream(resource).use {
+            return LicenseFinder::class.java.getResourceAsStream(resource).use {
                 IOUtils.toString(it).getLettersAndDigits()
             }
         }
